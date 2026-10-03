@@ -230,9 +230,12 @@ function suggestDay(d, done, P, T) {
   const legsOk = wd !== 3 && !legsYesterday; // piernas: nunca el día antes del tenis de entrenamiento ni dos días seguidos
   const fz = ['A', 'B', 'C'].find(x => !done[x] && (!LEGS.includes(x) || legsOk));
   const ids = [], notes = [];
+  const partner = tenis(d) === 'partner';
   if (fz) ids.push(fz);
-  else if (P < 2 || wd === 3) ids.push('P');
-  if (T < 2 && (wd === 2 || wd === 5)) ids.push('T');
+  else if (wd === 3) { if (partner) ids.push('P'); } // jueves: trote suave, o Prevención si jugás con partner
+  else if (P < 2) ids.push('P');
+  if (T < 2 && ((wd === 3 && !partner) || wd === 5)) ids.push('T');
+  if (wd === 3 && partner) notes.push('Hoy jugás con partner: Prevención antes de jugar y sin trote.');
   const legsPending = LEGS.some(x => !done[x]);
   if (legsPending && legsYesterday) notes.push('Ayer hubo piernas: hoy no se repiten.');
   else if (legsPending && wd === 3) notes.push('Piernas hoy no: mañana entrenás tenis.');
