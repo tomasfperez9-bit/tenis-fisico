@@ -220,20 +220,39 @@ function weekStatus(mon) {
   for (let i = 0; i < 7; i++) { const d = addDays(mon, i); if (d <= today() && tenis(d) !== 'no') ten++; }
   return { A: at('A'), B: at('B'), C: at('C'), P: L.filter(l => l.sid === 'P').length, T: L.filter(l => l.sid === 'T').length, tenis: ten };
 }
-function suggestion(d) {
-  const wd = dow(d), st = weekStatus(monday(d));
+const LEGS = ['A', 'C'];
+// Sugerencia de un día dado lo hecho antes en la semana (done: sesión → fecha, P/T: cantidad).
+function suggestDay(d, done, P, T) {
+  const wd = dow(d);
   if (wd === 6) return { ids: [], text: 'Domingo: descanso total. Nada de gimnasio 😴' };
   if (wd === 0 || wd === 4) return { ids: ['P'], text: 'Entrenamiento de tenis a la noche: a las 18 solo Prevención.' };
-  const allowA = [1, 2, 5].includes(wd); // mar, mié, sáb: ≥ 48 h antes del tenis de lun/vie
-  const fz = ['A', 'B', 'C'].find(x => !st[x] && (x !== 'A' || allowA));
+  const legsYesterday = LEGS.some(x => done[x] === addDays(d, -1));
+  const legsOk = wd !== 3 && !legsYesterday; // piernas: nunca el día antes del tenis de entrenamiento ni dos días seguidos
+  const fz = ['A', 'B', 'C'].find(x => !done[x] && (!LEGS.includes(x) || legsOk));
   const ids = [], notes = [];
   if (fz) ids.push(fz);
-  else if (st.P < 2) ids.push('P');
-  if (st.T < 2 && (wd === 2 || wd === 5 || !fz)) ids.push('T');
-  if (!st.A && !allowA) notes.push('Fuerza A hoy no: queda a menos de 48 h del tenis. Va martes, miércoles o sábado.');
+  else if (P < 2 || wd === 3) ids.push('P');
+  if (T < 2 && (wd === 2 || wd === 5)) ids.push('T');
+  const legsPending = LEGS.some(x => !done[x]);
+  if (legsPending && legsYesterday) notes.push('Ayer hubo piernas: hoy no se repiten.');
+  else if (legsPending && wd === 3) notes.push('Piernas hoy no: mañana entrenás tenis.');
   if (tenis(d) === 'partner' && fz) notes.push('Si jugás a la mañana, la fuerza va a la tarde.');
-  if (!fz && st.A && st.B && st.C) notes.unshift('Fuerza de la semana completa 💪');
+  if (!fz && done.A && done.B && done.C) notes.unshift('Fuerza de la semana completa 💪');
   return { ids, text: notes.join(' ') || 'Esto es lo que te toca hoy.' };
+}
+// Recorre la semana: los días pasados cuentan lo realmente hecho; hoy y los futuros
+// suponen que se cumple lo sugerido, así al mirar adelante se ve el plan completo.
+function suggestion(d) {
+  const mon = monday(d), t0 = today(), done = {};
+  let P = 0, T = 0, res;
+  for (let i = 0; i <= dow(d); i++) {
+    const x = addDays(mon, i);
+    res = suggestDay(x, done, P, T);
+    const real = PLAN.order.filter(sid => (getLog(x, sid) || {}).finished);
+    const did = x < t0 ? real : [...new Set([...real, ...res.ids])];
+    for (const sid of did) { if (sid === 'P') P++; else if (sid === 'T') T++; else if (!done[sid]) done[sid] = x; }
+  }
+  return res;
 }
 
 // ───────────────────────── Progresión ─────────────────────────
